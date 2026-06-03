@@ -958,8 +958,11 @@ const UserDashboard = () => {
 
   const filteredDoctors = doctors.filter(doc => {
     if (selectedSymptom) {
-      const targetSpecialty = SYMPTOM_MAP[selectedSymptom].toLowerCase();
-      if (doc.specialization.toLowerCase() !== targetSpecialty) {
+      const mapped = SYMPTOM_MAP[selectedSymptom];
+      const specialties = Array.isArray(mapped)
+        ? mapped.map(s => s.toLowerCase())
+        : [mapped.toLowerCase()];
+      if (!specialties.includes(doc.specialization.toLowerCase())) {
         return false;
       }
     }

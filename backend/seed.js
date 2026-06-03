@@ -130,7 +130,7 @@ const seedDB = async () => {
         name: 'Dr. Neha Roy',
         email: 'neha@test.com',
         phone: '555-0143',
-        specialization: 'Pediatrician',
+        specialization: ['Pediatrician', 'Cardiologist'],
         experience: 9,
         fee: 110,
         slots: [
