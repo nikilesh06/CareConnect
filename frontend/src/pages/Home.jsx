@@ -1,11 +1,14 @@
-import React from 'react';
+import React, { useContext } from 'react';
 import { Link } from 'react-router-dom';
+import { AuthContext } from '../context/AuthContext';
 import { 
   Shield, Clock, Calendar, FileText, Activity, Users, 
   ArrowRight, Heart, Award, Eye, Settings, HelpCircle, CheckCircle2 
 } from 'lucide-react';
 
 const Home = () => {
+  const { user } = useContext(AuthContext);
+
   return (
     <div style={{ animation: 'fadeIn 0.4s ease-out', paddingBottom: '60px' }}>
       
@@ -30,12 +33,20 @@ const Home = () => {
           Instantly connect and schedule consultations with certified medical specialists. Manage prescriptions, track appointments, and secure your health journey today.
         </p>
         <div className="flex justify-center gap-4" style={{ marginBottom: '60px' }}>
-          <Link to="/register" className="btn btn-primary" style={{ padding: '14px 28px', fontSize: '1.05rem', borderRadius: '14px' }}>
-            Get Started Free <ArrowRight size={18} style={{ marginLeft: '8px' }} />
-          </Link>
-          <Link to="/login" className="btn btn-secondary" style={{ padding: '14px 28px', fontSize: '1.05rem', borderRadius: '14px' }}>
-            Access Account
-          </Link>
+          {user ? (
+            <Link to="/dashboard" className="btn btn-primary" style={{ padding: '14px 28px', fontSize: '1.05rem', borderRadius: '14px' }}>
+              Go to Dashboard <ArrowRight size={18} style={{ marginLeft: '8px' }} />
+            </Link>
+          ) : (
+            <>
+              <Link to="/register" className="btn btn-primary" style={{ padding: '14px 28px', fontSize: '1.05rem', borderRadius: '14px' }}>
+                Get Started Free <ArrowRight size={18} style={{ marginLeft: '8px' }} />
+              </Link>
+              <Link to="/login" className="btn btn-secondary" style={{ padding: '14px 28px', fontSize: '1.05rem', borderRadius: '14px' }}>
+                Access Account
+              </Link>
+            </>
+          )}
         </div>
       </div>
 

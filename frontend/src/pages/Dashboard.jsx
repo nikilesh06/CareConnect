@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import { AuthContext } from '../context/AuthContext';
 import axios from 'axios';
-import { 
-  Users, FileText, Check, Settings as SettingsIcon, 
-  Clock, Calendar, Shield, CreditCard, Award, Eye, 
+import {
+  Users, FileText, Check, Settings as SettingsIcon,
+  Clock, Calendar, Shield, CreditCard, Award, Eye,
   Plus, CheckCircle, Search, FileDown, LogOut, ArrowRight, Activity,
   Bell, Lock, RefreshCw, XCircle, ChevronRight, User as UserIcon
 } from 'lucide-react';
@@ -24,6 +25,9 @@ const isPastOrUnder24h = (dateStr, timeStr) => {
 const NotificationBell = () => {
   const [notifications, setNotifications] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, right: 0 });
+  const bellRef = useRef(null);
+  const dropdownRef = useRef(null);
 
   const fetchNotifications = async () => {
     try {
@@ -40,6 +44,31 @@ const NotificationBell = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Close only when clicking outside BOTH the bell button AND the portal dropdown
+  useEffect(() => {
+    if (!showDropdown) return;
+    const handleOutside = (e) => {
+      const insideBell = bellRef.current && bellRef.current.contains(e.target);
+      const insideDropdown = dropdownRef.current && dropdownRef.current.contains(e.target);
+      if (!insideBell && !insideDropdown) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutside);
+    return () => document.removeEventListener('mousedown', handleOutside);
+  }, [showDropdown]);
+
+  const handleToggle = () => {
+    if (!showDropdown && bellRef.current) {
+      const rect = bellRef.current.getBoundingClientRect();
+      setDropdownPos({
+        top: rect.bottom + 10,
+        right: window.innerWidth - rect.right
+      });
+    }
+    setShowDropdown(prev => !prev);
+  };
+
   const handleMarkAllRead = async () => {
     try {
       await axios.put('/api/notifications/read');
@@ -53,18 +82,76 @@ const NotificationBell = () => {
 
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
+  // Render dropdown via portal into document.body to escape any
+  // parent backdrop-filter / transform stacking contexts
+  const dropdown = showDropdown ? (
+    <div
+      ref={dropdownRef}
+      style={{
+        position: 'fixed',
+        top: `${dropdownPos.top}px`,
+        right: `${dropdownPos.right}px`,
+        width: '360px',
+        maxHeight: '460px',
+        overflowY: 'auto',
+        zIndex: 99999,
+        padding: '18px',
+        background: '#ffffff',
+        borderRadius: '16px',
+        border: '1px solid rgba(226, 232, 240, 0.9)',
+        boxShadow: '0 24px 64px rgba(15, 23, 42, 0.22), 0 4px 16px rgba(79, 70, 229, 0.12)',
+        animation: 'scaleIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
+      }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border)', paddingBottom: '12px' }}>
+        <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Bell size={14} color="var(--primary)" /> Platform Notifications
+        </h4>
+        {unreadCount > 0 && (
+          <button
+            onMouseDown={e => e.stopPropagation()}
+            onClick={handleMarkAllRead}
+            style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '700', padding: '4px 8px', borderRadius: '6px' }}
+          >
+            Mark all read
+          </button>
+        )}
+      </div>
+
+      {notifications.length === 0 ? (
+        <p className="text-muted" style={{ fontSize: '0.85rem', textAlign: 'center', padding: '24px 0' }}>No notifications yet.</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {notifications.map(n => (
+            <div key={n._id} style={{
+              padding: '10px 14px', borderRadius: '10px', fontSize: '0.82rem',
+              borderLeft: `4px solid ${n.isRead ? 'var(--border)' : 'var(--primary)'}`,
+              backgroundColor: n.isRead ? 'rgba(248,250,252,0.8)' : 'rgba(79, 70, 229, 0.05)',
+              transition: 'all 0.2s'
+            }}>
+              <p style={{ margin: '0 0 5px', color: 'var(--text-main)', fontWeight: n.isRead ? '400' : '600', lineHeight: '1.45' }}>{n.message}</p>
+              <small className="text-muted" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem' }}>
+                <Clock size={10} /> {new Date(n.createdAt).toLocaleTimeString()}
+              </small>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  ) : null;
+
   return (
-    <div style={{ position: 'relative', display: 'inline-block' }}>
-      <button 
-        onClick={() => setShowDropdown(!showDropdown)} 
-        className="btn btn-secondary" 
-        style={{ padding: '10px', position: 'relative', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '42px', height: '42px' }}
+    <div ref={bellRef} style={{ display: 'inline-block', position: 'relative' }}>
+      <button
+        onClick={handleToggle}
+        className="btn btn-secondary"
+        style={{ padding: '10px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '42px', height: '42px', position: 'relative' }}
       >
         <Bell size={18} />
         {unreadCount > 0 && (
-          <span style={{ 
-            position: 'absolute', top: '-2px', right: '-2px', backgroundColor: 'var(--danger)', 
-            color: 'white', fontSize: '0.65rem', fontWeight: 'bold', width: '18px', height: '18px', 
+          <span style={{
+            position: 'absolute', top: '-2px', right: '-2px', backgroundColor: 'var(--danger)',
+            color: 'white', fontSize: '0.65rem', fontWeight: 'bold', width: '18px', height: '18px',
             borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 0 0 2px var(--background)'
           }}>
@@ -73,43 +160,7 @@ const NotificationBell = () => {
         )}
       </button>
 
-      {showDropdown && (
-        <div className="card" style={{ 
-          position: 'absolute', top: '50px', right: '0', width: '340px', 
-          zIndex: '150', padding: '16px', maxHeight: '420px', overflowY: 'auto',
-          animation: 'scaleIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1)',
-          background: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(20px)'
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', borderBottom: '1px solid var(--border)', paddingBottom: '10px' }}>
-            <h4 style={{ margin: '0', fontSize: '0.95rem', fontWeight: '700' }}>Platform Notifications</h4>
-            {unreadCount > 0 && (
-              <button onClick={handleMarkAllRead} style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '700' }}>
-                Mark all read
-              </button>
-            )}
-          </div>
-
-          {notifications.length === 0 ? (
-            <p className="text-muted" style={{ fontSize: '0.85rem', textAlign: 'center', padding: '24px 0' }}>No notifications yet.</p>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {notifications.map(n => (
-                <div key={n._id} style={{ 
-                  padding: '10px 12px', borderRadius: '10px', fontSize: '0.8rem', 
-                  borderLeft: `4px solid ${n.isRead ? 'var(--border)' : 'var(--primary)'}`,
-                  backgroundColor: n.isRead ? 'transparent' : 'rgba(79, 70, 229, 0.03)',
-                  transition: 'all 0.2s'
-                }}>
-                  <p style={{ margin: '0 0 6px', color: 'var(--text-main)', fontWeight: n.isRead ? 'normal' : '600', lineHeight: '1.4' }}>{n.message}</p>
-                  <small className="text-muted" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Clock size={10} /> {new Date(n.createdAt).toLocaleTimeString()}
-                  </small>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      {ReactDOM.createPortal(dropdown, document.body)}
     </div>
   );
 };
@@ -387,7 +438,7 @@ const AdminDashboard = () => {
                       <td>{doc.experience} years</td>
                       <td style={{ fontWeight: '700' }}>₹{doc.fee}</td>
                       <td>
-                        <span style={{ 
+                        <span style={{
                           padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase',
                           backgroundColor: doc.isApproved ? 'rgba(16, 185, 129, 0.08)' : 'rgba(245, 158, 11, 0.08)',
                           color: doc.isApproved ? 'var(--secondary)' : '#F59E0B'
@@ -652,7 +703,7 @@ const DoctorDashboard = () => {
           ) : (
             <div className="grid grid-cols-2" style={{ gap: '20px' }}>
               {appointments.map(appt => (
-                <div key={appt._id} className="card" style={{ 
+                <div key={appt._id} className="card" style={{
                   display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
                   borderLeft: `5px solid ${appt.status === 'completed' ? 'var(--secondary)' : appt.status === 'cancelled' ? 'var(--danger)' : 'var(--primary)'}`
                 }}>
@@ -662,12 +713,12 @@ const DoctorDashboard = () => {
                         <h4 style={{ fontSize: '1.1rem', margin: 0, fontWeight: '700' }}>{appt.userId?.name}</h4>
                         <span className="text-muted" style={{ fontSize: '0.8rem' }}>📞 {appt.userId?.phone || appt.userId?.email}</span>
                       </div>
-                      <span style={{ 
+                      <span style={{
                         padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase',
-                        backgroundColor: appt.status === 'completed' ? 'rgba(16, 185, 129, 0.08)' : 
-                                         appt.status === 'cancelled' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(79, 70, 229, 0.08)',
-                        color: appt.status === 'completed' ? 'var(--secondary)' : 
-                               appt.status === 'cancelled' ? 'var(--danger)' : 'var(--primary)'
+                        backgroundColor: appt.status === 'completed' ? 'rgba(16, 185, 129, 0.08)' :
+                          appt.status === 'cancelled' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(79, 70, 229, 0.08)',
+                        color: appt.status === 'completed' ? 'var(--secondary)' :
+                          appt.status === 'cancelled' ? 'var(--danger)' : 'var(--primary)'
                       }}>
                         {appt.status}
                       </span>
@@ -771,7 +822,7 @@ const DoctorDashboard = () => {
                         <Clock size={12} /> {slot.startTime} - {slot.endTime}
                       </span>
                     </div>
-                    <span style={{ 
+                    <span style={{
                       padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: '700',
                       backgroundColor: slot.isBooked ? 'rgba(239, 68, 68, 0.08)' : 'rgba(16, 185, 129, 0.08)',
                       color: slot.isBooked ? 'var(--danger)' : 'var(--secondary)'
@@ -992,7 +1043,7 @@ const UserDashboard = () => {
             <h4 className="text-muted" style={{ fontSize: '0.8rem', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '700' }}>
               Filter Symptoms by Area:
             </h4>
-            
+
             {/* Category Navigation Tabs */}
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '24px', borderBottom: '1px solid var(--border)', paddingBottom: '16px' }}>
               {Object.entries(SYMPTOM_CATEGORIES).map(([label, value]) => {
@@ -1083,7 +1134,7 @@ const UserDashboard = () => {
             ) : (
               filteredDoctors.map(doc => {
                 const getAvatarGradient = (spec) => {
-                  switch(spec.toLowerCase()) {
+                  switch (spec.toLowerCase()) {
                     case 'cardiologist': return 'linear-gradient(135deg, #EF4444 0%, #B91C1C 100%)';
                     case 'dermatologist': return 'linear-gradient(135deg, #10B981 0%, #047857 100%)';
                     case 'neurologist': return 'linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%)';
@@ -1099,10 +1150,10 @@ const UserDashboard = () => {
                   <div key={doc._id} className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', padding: '24px' }}>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
-                        <div style={{ 
-                          width: '48px', height: '48px', borderRadius: '50%', 
-                          background: getAvatarGradient(doc.specialization), color: 'white', 
-                          display: 'flex', alignItems: 'center', justifyContent: 'center', 
+                        <div style={{
+                          width: '48px', height: '48px', borderRadius: '50%',
+                          background: getAvatarGradient(doc.specialization), color: 'white',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
                           fontWeight: '700', fontSize: '1.2rem', boxShadow: '0 4px 10px rgba(0,0,0,0.1)'
                         }}>
                           {initial}
@@ -1167,7 +1218,7 @@ const UserDashboard = () => {
               {userAppts.map(appt => {
                 const isLocked = appt.status !== 'scheduled' || isPastOrUnder24h(appt.date, appt.slotStartTime);
                 return (
-                  <div key={appt._id} className="card" style={{ 
+                  <div key={appt._id} className="card" style={{
                     display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
                     borderLeft: `5px solid ${appt.status === 'completed' ? 'var(--secondary)' : appt.status === 'cancelled' ? 'var(--danger)' : 'var(--primary)'}`
                   }}>
@@ -1179,12 +1230,12 @@ const UserDashboard = () => {
                             {appt.doctorId?.specialization}
                           </span>
                         </div>
-                        <span style={{ 
+                        <span style={{
                           padding: '4px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: '700', textTransform: 'uppercase',
-                          backgroundColor: appt.status === 'completed' ? 'rgba(16, 185, 129, 0.08)' : 
-                                           appt.status === 'cancelled' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(79, 70, 229, 0.08)',
-                          color: appt.status === 'completed' ? 'var(--secondary)' : 
-                                 appt.status === 'cancelled' ? 'var(--danger)' : 'var(--primary)'
+                          backgroundColor: appt.status === 'completed' ? 'rgba(16, 185, 129, 0.08)' :
+                            appt.status === 'cancelled' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(79, 70, 229, 0.08)',
+                          color: appt.status === 'completed' ? 'var(--secondary)' :
+                            appt.status === 'cancelled' ? 'var(--danger)' : 'var(--primary)'
                         }}>
                           {appt.status}
                         </span>
@@ -1230,19 +1281,19 @@ const UserDashboard = () => {
 
                       {appt.status === 'scheduled' && (
                         <div style={{ display: 'flex', gap: '10px' }}>
-                          <button 
-                            disabled={isLocked || loading} 
-                            onClick={() => handleRescheduleAppointment(appt._id)} 
-                            className="btn btn-secondary" 
+                          <button
+                            disabled={isLocked || loading}
+                            onClick={() => handleRescheduleAppointment(appt._id)}
+                            className="btn btn-secondary"
                             style={{ flex: '1', padding: '8px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', borderRadius: '8px' }}
                             title={isLocked ? "Locked (Under 24 hour limit)" : "Reschedule to next available slot"}
                           >
                             {isLocked ? <Lock size={12} /> : <RefreshCw size={12} />} Reschedule
                           </button>
-                          <button 
-                            disabled={isLocked || loading} 
-                            onClick={() => handleCancelAppointment(appt._id)} 
-                            className="btn btn-danger" 
+                          <button
+                            disabled={isLocked || loading}
+                            onClick={() => handleCancelAppointment(appt._id)}
+                            className="btn btn-danger"
                             style={{ flex: '1', padding: '8px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '6px', borderRadius: '8px' }}
                             title={isLocked ? "Locked (Under 24 hour limit)" : "Cancel consultation"}
                           >
@@ -1267,7 +1318,7 @@ const UserDashboard = () => {
           ) : (
             <div className="grid grid-cols-2" style={{ gap: '24px' }}>
               {userAppts.filter(appt => appt.status === 'completed' && appt.prescription).map(appt => (
-                <div key={appt._id} className="card" style={{ 
+                <div key={appt._id} className="card" style={{
                   display: 'flex', flexDirection: 'column', gap: '16px', padding: '28px',
                   borderLeft: '5px solid var(--secondary)', background: 'linear-gradient(135deg, var(--surface) 0%, rgba(255,255,255,0.98) 100%)'
                 }}>
@@ -1285,9 +1336,9 @@ const UserDashboard = () => {
                     </span>
                   </div>
 
-                  <div style={{ 
-                    backgroundColor: 'rgba(16, 185, 129, 0.04)', padding: '16px 20px', borderRadius: '12px', 
-                    border: '1px solid rgba(16, 185, 129, 0.1)', flexGrow: '1' 
+                  <div style={{
+                    backgroundColor: 'rgba(16, 185, 129, 0.04)', padding: '16px 20px', borderRadius: '12px',
+                    border: '1px solid rgba(16, 185, 129, 0.1)', flexGrow: '1'
                   }}>
                     <strong style={{ display: 'block', fontSize: '0.8rem', textTransform: 'uppercase', color: 'var(--secondary)', letterSpacing: '0.05em', marginBottom: '6px' }}>
                       Prescription Guidelines & Dosage:
@@ -1301,9 +1352,9 @@ const UserDashboard = () => {
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                       Authorized Signature: Certified CareConnect Practitioner
                     </span>
-                    <span style={{ 
-                      padding: '4px 10px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: '700', 
-                      backgroundColor: 'rgba(16, 185, 129, 0.08)', color: 'var(--secondary)', textTransform: 'uppercase' 
+                    <span style={{
+                      padding: '4px 10px', borderRadius: '20px', fontSize: '0.7rem', fontWeight: '700',
+                      backgroundColor: 'rgba(16, 185, 129, 0.08)', color: 'var(--secondary)', textTransform: 'uppercase'
                     }}>
                       Active Treatment
                     </span>
@@ -1326,18 +1377,18 @@ const Dashboard = () => {
 
   return (
     <div style={{ minHeight: 'calc(100vh - 120px)', animation: 'fadeIn 0.35s ease-out' }}>
-      
+
       {/* Premium Integrated Header panel */}
-      <div className="card" style={{ 
-        padding: '24px 32px', marginBottom: '32px', display: 'flex', justifyContent: 'space-between', 
+      <div className="card" style={{
+        padding: '24px 32px', marginBottom: '32px', display: 'flex', justifyContent: 'space-between',
         alignItems: 'center', background: 'linear-gradient(135deg, var(--surface) 0%, rgba(255,255,255,0.95) 100%)',
         borderLeft: '5px solid var(--primary)', borderRadius: '16px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <div style={{ 
-            width: '60px', height: '60px', borderRadius: '50%', 
-            background: 'linear-gradient(135deg, var(--primary) 0%, #4338CA 100%)', color: 'white', 
-            display: 'flex', alignItems: 'center', justifyContent: 'center', 
+          <div style={{
+            width: '60px', height: '60px', borderRadius: '50%',
+            background: 'linear-gradient(135deg, var(--primary) 0%, #4338CA 100%)', color: 'white',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontWeight: '700', fontSize: '1.4rem', boxShadow: '0 4px 14px rgba(79,70,229,0.2)'
           }}>
             {user?.name.charAt(0).toUpperCase()}
@@ -1345,10 +1396,10 @@ const Dashboard = () => {
           <div>
             <h1 style={{ fontSize: '1.6rem', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
               Welcome, {user?.name}!
-              <span style={{ 
-                fontSize: '0.75rem', padding: '4px 12px', borderRadius: '20px', 
-                backgroundColor: 'rgba(79, 70, 229, 0.08)', color: 'var(--primary)', 
-                fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em' 
+              <span style={{
+                fontSize: '0.75rem', padding: '4px 12px', borderRadius: '20px',
+                backgroundColor: 'rgba(79, 70, 229, 0.08)', color: 'var(--primary)',
+                fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em'
               }}>
                 {user?.role}
               </span>

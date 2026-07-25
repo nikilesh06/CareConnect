@@ -130,7 +130,7 @@ const seedDB = async () => {
         name: 'Dr. Neha Roy',
         email: 'neha@test.com',
         phone: '555-0143',
-        specialization: ['Pediatrician', 'Cardiologist'],
+        specialization: 'Pediatrician',
         experience: 9,
         fee: 110,
         slots: [
@@ -255,6 +255,58 @@ const seedDB = async () => {
       await Appointment.create(appt);
     }
     console.log('4 Completed Consultation sessions with active medicine prescriptions seeded successfully!');
+
+    // Seed initial notifications for patients, doctors, and admin
+    const adminUser = await User.findOne({ role: 'admin' });
+    if (adminUser) {
+      await Notification.create({
+        userId: adminUser._id,
+        message: 'Welcome to CareConnect Admin Panel! 12% commission rule is currently active.'
+      });
+      await Notification.create({
+        userId: adminUser._id,
+        message: 'Platform statistics updated: 6 verified medical practitioners and 5 registered patients.'
+      });
+    }
+
+    if (aliceUser) {
+      await Notification.create({
+        userId: aliceUser._id,
+        message: 'Welcome to CareConnect! Your appointment with Dr. Shalini Sharma was completed successfully.'
+      });
+      await Notification.create({
+        userId: aliceUser._id,
+        message: 'Digital Prescription Available: Atorvastatin 20mg has been added to your health records.'
+      });
+      await Notification.create({
+        userId: aliceUser._id,
+        message: 'Digital Prescription Available: Hydrocortisone 1% Cream has been added to your health records.'
+      });
+    }
+
+    if (bobUser) {
+      await Notification.create({
+        userId: bobUser._id,
+        message: 'Welcome to CareConnect! Your consultation with Dr. Amit Tripathi was completed.'
+      });
+      await Notification.create({
+        userId: bobUser._id,
+        message: 'Digital Prescription Available: Sumatriptan 50mg has been prescribed by Dr. Amit Tripathi.'
+      });
+    }
+
+    if (sarahDoc) {
+      await Notification.create({
+        userId: sarahDoc._id,
+        message: 'Welcome Dr. Shalini Sharma! Your medical practitioner profile is fully verified.'
+      });
+      await Notification.create({
+        userId: sarahDoc._id,
+        message: 'Patient Aanya Sharma consultation session marked completed.'
+      });
+    }
+
+    console.log('Sample notifications seeded successfully!');
 
     // Create App settings
     await Settings.create({
